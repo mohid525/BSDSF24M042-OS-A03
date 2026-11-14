@@ -1,6 +1,106 @@
 #include "shell.h"
 static char *command_history[HISTORY_SIZE];
 static int history_count = 0;
+typedef struct Variable {
+    char *name;
+    char *value;
+    struct Variable *next;
+} Variable;
+
+static Variable *variables = NULL;
+
+int is_variable_assignment(const char *text) {
+    const char *equals = strchr(text, '=');
+
+    return equals != NULL &&
+           equals != text &&
+           equals != text + strlen(text) - 1;
+}
+
+void set_variable(const char *assignment) {
+    const char *equals = strchr(assignment, '=');
+    size_t name_length = equals - assignment;
+
+    char *name = malloc(name_length + 1);
+    strncpy(name, assignment, name_length);
+    name[name_length] = '\0';
+
+    const char *value_start = equals + 1;
+    size_t value_length = strlen(value_start);
+
+    if (value_length >= 2 &&
+        ((value_start[0] == '"' &&
+          value_start[value_length - 1] == '"') ||
+         (value_start[0] == '\'' &&
+          value_start[value_length - 1] == '\''))) {
+        value_start++;
+        value_length -= 2;
+    }
+
+    char *value = malloc(value_length + 1);
+    strncpy(value, value_start, value_length);
+    value[value_length] = '\0';
+
+    Variable *current = variables;
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            free(current->value);
+            current->value = value;
+            free(name);
+            return;
+        }
+
+        current = current->next;
+    }
+
+    Variable *new_variable = malloc(sizeof(Variable));
+    new_variable->name = name;
+    new_variable->value = value;
+    new_variable->next = variables;
+    variables = new_variable;
+}
+
+const char *get_variable(const char *name) {
+    Variable *current = variables;
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current->value;
+        }
+
+        current = current->next;
+    }
+
+    return NULL;
+}
+
+void print_variables(void) {
+    Variable *current = variables;
+
+    while (current != NULL) {
+        printf("%s=%s\n", current->name, current->value);
+        current = current->next;
+    }
+}
+
+char *expand_variables(const char *text) {
+    if (text[0] != '$') {
+        char *copy = malloc(strlen(text) + 1);
+        strcpy(copy, text);
+        return copy;
+    }
+
+    const char *value = get_variable(text + 1);
+
+    if (value == NULL) {
+        value = "";
+    }
+
+    char *expanded = malloc(strlen(value) + 1);
+    strcpy(expanded, value);
+    return expanded;
+}
 #include <string.h>
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
@@ -75,6 +175,10 @@ int handle_builtin(char **arglist) {
         }
         return 1;
     }
+    if (strcmp(arglist[0], "set") == 0) {
+      print_variables();
+      return 1;
+     }
 
     if (strcmp(arglist[0], "help") == 0) {
         printf("Built-in commands:\n");

@@ -28,4 +28,9 @@ void print_command_history(void);
 const char *get_history_command(int number);
 void reap_background_jobs(void);
 void print_background_jobs(void);
+void set_variable(const char *assignment);
+const char *get_variable(const char *name);
+void print_variables(void);
+int is_variable_assignment(const char *text);
+char *expand_variables(const char *text);
 #endif // SHELL_H

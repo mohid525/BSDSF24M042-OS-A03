@@ -44,10 +44,21 @@ static int process_segment(char *segment) {
         segment = trim_spaces(segment);
     }
 
+    if (is_variable_assignment(segment)) {
+        set_variable(segment);
+        return 0;
+    }
+
     char **arglist = tokenize(segment);
 
     if (arglist == NULL) {
         return 0;
+    }
+
+    for (int i = 0; arglist[i] != NULL; i++) {
+        char *expanded = expand_variables(arglist[i]);
+        free(arglist[i]);
+        arglist[i] = expanded;
     }
 
     int result = 0;
@@ -182,7 +193,8 @@ int main() {
             if (endptr == clean_line + 1 ||
                 *endptr != '\0' ||
                 number < 1) {
-                fprintf(stderr, "Invalid history reference: %s\n",
+                fprintf(stderr,
+                        "Invalid history reference: %s\n",
                         clean_line);
                 free(cmdline);
                 continue;
@@ -192,7 +204,8 @@ int main() {
                 get_history_command((int)number);
 
             if (saved_command == NULL) {
-                fprintf(stderr, "History entry not found: %ld\n",
+                fprintf(stderr,
+                        "History entry not found: %ld\n",
                         number);
                 free(cmdline);
                 continue;
