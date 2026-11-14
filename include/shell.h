@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define MAX_LEN 512
 #define MAXARGS 10
