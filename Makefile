@@ -9,7 +9,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	mkdir -p bin
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS) -o $@ $^ -lreadline
 
 build/%.o: src/%.c
 	mkdir -p build

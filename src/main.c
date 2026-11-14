@@ -3,8 +3,12 @@
 int main() {
     char *cmdline;
     char **arglist;
+    using_history();
+    while ((cmdline = readline(PROMPT)) != NULL) {
+        if (cmdline[0] != '\0') {
+            add_history(cmdline);
+        }
 
-    while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
         if (cmdline[0] == '!') {
             char *endptr;
             long number = strtol(cmdline + 1, &endptr, 10);
