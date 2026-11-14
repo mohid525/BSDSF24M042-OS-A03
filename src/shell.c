@@ -91,9 +91,10 @@ int handle_builtin(char **arglist) {
      }
 
     if (strcmp(arglist[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
-        return 1;
-    }
+       reap_background_jobs();
+       print_background_jobs();
+       return 1;
+     }
 
     return 0;
 }

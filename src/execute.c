@@ -1,18 +1,84 @@
 #include "shell.h"
 
+#define MAX_JOBS 32
+#define MAX_JOB_COMMAND 256
+
+typedef struct {
+    pid_t pid;
+    char command[MAX_JOB_COMMAND];
+} BackgroundJob;
+
+static BackgroundJob jobs[MAX_JOBS];
+static int job_count = 0;
+
+static void add_background_job(pid_t pid, char *args[]) {
+    if (job_count >= MAX_JOBS) {
+        fprintf(stderr, "Too many background jobs\n");
+        return;
+    }
+
+    jobs[job_count].pid = pid;
+    jobs[job_count].command[0] = '\0';
+
+    for (int i = 0; args[i] != NULL; i++) {
+        if (strlen(jobs[job_count].command) +
+                strlen(args[i]) + 2 >= MAX_JOB_COMMAND) {
+            break;
+        }
+
+        if (i > 0) {
+            strcat(jobs[job_count].command, " ");
+        }
+
+        strcat(jobs[job_count].command, args[i]);
+    }
+
+    job_count++;
+}
+
+static void remove_background_job(pid_t pid) {
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].pid == pid) {
+            for (int j = i + 1; j < job_count; j++) {
+                jobs[j - 1] = jobs[j];
+            }
+
+            job_count--;
+            return;
+        }
+    }
+}
+
+void reap_background_jobs(void) {
+    int status;
+    pid_t pid;
+
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        remove_background_job(pid);
+    }
+}
+
+void print_background_jobs(void) {
+    if (job_count == 0) {
+        printf("No active background jobs.\n");
+        return;
+    }
+
+    for (int i = 0; i < job_count; i++) {
+        printf("[%d] PID %d  %s\n",
+               i + 1,
+               jobs[i].pid,
+               jobs[i].command);
+    }
+}
+
 static void run_command(char *args[], int input_fd, int output_fd) {
     if (input_fd != -1) {
-        if (dup2(input_fd, STDIN_FILENO) == -1) {
-            perror("dup2 input");
-            _exit(1);
-        }
+        dup2(input_fd, STDIN_FILENO);
     }
 
     if (output_fd != -1) {
-        if (dup2(output_fd, STDOUT_FILENO) == -1) {
-            perror("dup2 output");
-            _exit(1);
-        }
+        dup2(output_fd, STDOUT_FILENO);
     }
 
     char *argv[MAXARGS + 1];
@@ -26,17 +92,13 @@ static void run_command(char *args[], int input_fd, int output_fd) {
             }
 
             int fd = open(args[i + 1], O_RDONLY);
+
             if (fd == -1) {
                 perror("open input");
                 _exit(1);
             }
 
-            if (dup2(fd, STDIN_FILENO) == -1) {
-                perror("dup2 input");
-                close(fd);
-                _exit(1);
-            }
-
+            dup2(fd, STDIN_FILENO);
             close(fd);
             i++;
         } else if (strcmp(args[i], ">") == 0) {
@@ -54,12 +116,7 @@ static void run_command(char *args[], int input_fd, int output_fd) {
                 _exit(1);
             }
 
-            if (dup2(fd, STDOUT_FILENO) == -1) {
-                perror("dup2 output");
-                close(fd);
-                _exit(1);
-            }
-
+            dup2(fd, STDOUT_FILENO);
             close(fd);
             i++;
         } else {
@@ -78,7 +135,7 @@ static void run_command(char *args[], int input_fd, int output_fd) {
     _exit(127);
 }
 
-int execute(char *arglist[]) {
+int execute(char *arglist[], int background) {
     int pipe_position = -1;
 
     for (int i = 0; arglist[i] != NULL; i++) {
@@ -100,8 +157,13 @@ int execute(char *arglist[]) {
             run_command(arglist, -1, -1);
         }
 
-        int status;
-        waitpid(child_pid, &status, 0);
+        if (background) {
+            add_background_job(child_pid, arglist);
+            printf("[Background PID %d]\n", child_pid);
+        } else {
+            waitpid(child_pid, NULL, 0);
+        }
+
         return 0;
     }
 
@@ -119,11 +181,13 @@ int execute(char *arglist[]) {
     left[pipe_position] = NULL;
 
     int right_count = 0;
+
     for (int i = pipe_position + 1;
          arglist[i] != NULL;
          i++) {
         right[right_count++] = arglist[i];
     }
+
     right[right_count] = NULL;
 
     int pipe_fds[2];
@@ -165,8 +229,14 @@ int execute(char *arglist[]) {
     close(pipe_fds[0]);
     close(pipe_fds[1]);
 
-    waitpid(left_pid, NULL, 0);
-    waitpid(right_pid, NULL, 0);
+    if (background) {
+        add_background_job(left_pid, left);
+        add_background_job(right_pid, right);
+        printf("[Background PIDs %d, %d]\n", left_pid, right_pid);
+    } else {
+        waitpid(left_pid, NULL, 0);
+        waitpid(right_pid, NULL, 0);
+    }
 
     return 0;
 }

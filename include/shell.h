@@ -21,9 +21,11 @@
 // Function prototypes
 char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
-int execute(char** arglist);
+int execute(char **arglist, int background);
 int handle_builtin(char **arglist);
 void add_history_command(const char *command);
 void print_command_history(void);
 const char *get_history_command(int number);
+void reap_background_jobs(void);
+void print_background_jobs(void);
 #endif // SHELL_H
