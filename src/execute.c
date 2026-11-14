@@ -22,7 +22,7 @@ static void add_background_job(pid_t pid, char *args[]) {
 
     for (int i = 0; args[i] != NULL; i++) {
         if (strlen(jobs[job_count].command) +
-                strlen(args[i]) + 2 >= MAX_JOB_COMMAND) {
+            strlen(args[i]) + 2 >= MAX_JOB_COMMAND) {
             break;
         }
 
@@ -160,14 +160,21 @@ int execute(char *arglist[], int background) {
         if (background) {
             add_background_job(child_pid, arglist);
             printf("[Background PID %d]\n", child_pid);
-        } else {
-            waitpid(child_pid, NULL, 0);
+            return 0;
         }
 
-        return 0;
+        int status;
+        waitpid(child_pid, &status, 0);
+
+        if (WIFEXITED(status)) {
+            return WEXITSTATUS(status);
+        }
+
+        return 1;
     }
 
-    if (pipe_position == 0 || arglist[pipe_position + 1] == NULL) {
+    if (pipe_position == 0 ||
+        arglist[pipe_position + 1] == NULL) {
         fprintf(stderr, "Invalid pipe command\n");
         return -1;
     }
@@ -178,6 +185,7 @@ int execute(char *arglist[], int background) {
     for (int i = 0; i < pipe_position; i++) {
         left[i] = arglist[i];
     }
+
     left[pipe_position] = NULL;
 
     int right_count = 0;
@@ -232,11 +240,21 @@ int execute(char *arglist[], int background) {
     if (background) {
         add_background_job(left_pid, left);
         add_background_job(right_pid, right);
-        printf("[Background PIDs %d, %d]\n", left_pid, right_pid);
-    } else {
-        waitpid(left_pid, NULL, 0);
-        waitpid(right_pid, NULL, 0);
+        printf("[Background PIDs %d, %d]\n",
+               left_pid,
+               right_pid);
+        return 0;
     }
 
-    return 0;
+    int left_status;
+    int right_status;
+
+    waitpid(left_pid, &left_status, 0);
+    waitpid(right_pid, &right_status, 0);
+
+    if (WIFEXITED(right_status)) {
+        return WEXITSTATUS(right_status);
+    }
+
+    return 1;
 }
