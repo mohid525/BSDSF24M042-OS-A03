@@ -1,4 +1,6 @@
 #include "shell.h"
+static char *command_history[HISTORY_SIZE];
+static int history_count = 0;
 #include <string.h>
 char* read_cmd(char* prompt, FILE* fp) {
     printf("%s", prompt);
@@ -80,8 +82,13 @@ int handle_builtin(char **arglist) {
         printf("  cd <directory>    Change directory\n");
         printf("  help              Show this help message\n");
         printf("  jobs              Show background jobs\n");
+        printf("  history           Show command history\n");
         return 1;
     }
+     if (strcmp(arglist[0], "history") == 0) {
+          print_command_history();
+           return 1;
+     }
 
     if (strcmp(arglist[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
@@ -89,4 +96,37 @@ int handle_builtin(char **arglist) {
     }
 
     return 0;
+}
+void add_history_command(const char *command) {
+    if (command == NULL || command[0] == '\0') {
+        return;
+    }
+
+    if (history_count == HISTORY_SIZE) {
+        free(command_history[0]);
+
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            command_history[i - 1] = command_history[i];
+        }
+
+        history_count--;
+    }
+
+    command_history[history_count] = malloc(strlen(command) + 1);
+    strcpy(command_history[history_count], command);
+    history_count++;
+}
+
+void print_command_history(void) {
+    for (int i = 0; i < history_count; i++) {
+        printf("%d %s\n", i + 1, command_history[i]);
+    }
+}
+
+const char *get_history_command(int number) {
+    if (number < 1 || number > history_count) {
+        return NULL;
+    }
+
+    return command_history[number - 1];
 }
